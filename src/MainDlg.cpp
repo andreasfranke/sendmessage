@@ -546,17 +546,44 @@ bool CMainDlg::SendPostMessage(UINT id)
                 lparam = SendDlgItemMessage(*this, IDC_LPARAM, CB_GETITEMDATA, selIndex, 0);
         }
 
-        LRESULT res = 0;
-        if (id == IDC_SENDMESSAGE)
+        struct // copy of POWERBROADCAST_SETTING with a DWORD 4-byte data.
         {
-            res = SendMessage(hTargetWnd, msg, wparam, lparam);
-        }
-        else
+            GUID PowerSetting;
+            DWORD DataLength;
+            DWORD Data;
+        } actualPowerSetting = { GUID_SESSION_DISPLAY_STATUS, 0, 0};
+        if (wparam == PBT_POWERSETTINGCHANGE)
         {
-            res = PostMessage(hTargetWnd, msg, wparam, lparam);
+            constexpr DWORD MONITOR_STATE_FLAG = 0x00010000;
+            constexpr DWORD MONITOR_STATE_MASK = 0x00000003;
+
+            if ((lparam & MONITOR_STATE_FLAG) == MONITOR_STATE_FLAG)
+            {
+                const auto desiredMonitorState = static_cast<MONITOR_DISPLAY_STATE>(lparam & MONITOR_STATE_MASK);
+                actualPowerSetting.Data = static_cast<DWORD>(desiredMonitorState);
+                actualPowerSetting.DataLength = sizeof(DWORD);
+                lparam = reinterpret_cast<LPARAM>(&actualPowerSetting);
+            }
+            else
+            {
+                err = ERROR_INVALID_PARAMETER;
+            }
         }
+
+        if (err == ERROR_SUCCESS)
+        {
+            LRESULT res = 0;
+            if (id == IDC_SENDMESSAGE)
+            {
+                res = SendMessage(hTargetWnd, msg, wparam, lparam);
+            }
+            else
+            {
+                res = PostMessage(hTargetWnd, msg, wparam, lparam);
+            }
         _stprintf_s(buf, _countof(buf), _T("0x%08Ix (%Id)"), res, res);
-        SetDlgItemText(*this, IDC_RETVALUE, buf);
+            SetDlgItemText(*this, IDC_RETVALUE, buf);
+        }
 
         err = GetLastError();
     }
